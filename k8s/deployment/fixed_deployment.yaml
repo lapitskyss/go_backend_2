@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: statics
+  labels:
+    app: statics
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: statics
+    spec:
+      volumes:
+        - name: src
+          emptyDir: { }
+      initContainers:
+        - name: prepare-statics
+          image: alpine/git
+          command:
+            - git
+            - clone
+            - https://github.com/mdn/beginner-html-site-scripted
+            - /static
+          volumeMounts:
+            - mountPath: /static
+              name: src
+      containers:
+        - name: statics
+          image: docker.io/lapitskyss/go_backend_2_statics:v1.3.0
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /static
+              name: src
+          env:
+            - name: PORT
+              value: "8080"
+            - name: STATICS_PATH
+              value: "/static"
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /__heartbeat__
+              port: 8080
+              scheme: HTTP
+          readinessProbe:
+            httpGet:
+              path: /__heartbeat__
+              port: 8080
+              scheme: HTTP
+          resources:
+            limits:
+              cpu: 2m
+              memory: 10Mi
+            requests:
+              cpu: 2m
+              memory: 10Mi
+  selector:
+    matchLabels:
+      app: statics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: statics
+  labels:
+    app: statics
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: statics
